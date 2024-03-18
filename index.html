@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>PyBrowser</title>
+    <meta charset="utf-8">
+    <link rel="icon" href="./favicon.ico" />
+    <!--Styles-->
+    <link rel="stylesheet" href="./style.css"/>
+    <link rel="stylesheet" href="./header.css"/>
+    <link rel="stylesheet" href="./stylizedinputs.css"/>
+    <meta name="theme-color" content="#ff4d4d" />
+  </head>
+  <body>
+    <span id="top"></span>
+    <a href="#top"><span class="gototop"><span>⬆️</span></span></a>
+    <section id="home">
+      <br>
+      
+      <div class="snapshot">
+        <div class="slideshow-container">
+
+          <div class="mySlides fade">
+            <div class="numbertext">1 / 4</div>
+            <img src="screenshot1.png">
+            <div class="text"><font color="#000000">PyBrowser</font></div>
+          </div>
+          
+          <div class="mySlides fade">
+            <div class="numbertext">2 / 4</div>
+            <img src="screenshot2.png">
+            <div class="text">Private navigation</div>
+          </div>
+          
+          <div class="mySlides fade">
+            <div class="numbertext">3 / 4</div>
+            <img src="screenshot3.png">
+            <div class="text">Caption Three</div>
+          </div>
+          
+          <div class="mySlides fade">
+            <div class="numbertext">4 / 4</div>
+            <img src="screenshot4.png">
+            <div class="text">Caption Three</div>
+          </div>
+          
+          <a class="prev" onclick="plusSlides(-1)">❮</a>
+          <a class="next" onclick="plusSlides(1)">❯</a>
+          
+          </div>
+          <br>
+          
+          <div style="text-align:center">
+            <span class="dot" onclick="currentSlide(1)"></span> 
+            <span class="dot" onclick="currentSlide(2)"></span> 
+            <span class="dot" onclick="currentSlide(3)"></span> 
+          </div>
+      </div>
+      <br>
+      <div class="presentation">
+        <div class="text">
+          <p>A free, open-source, Python-made web browser.</p>
+          <a href="#download"><button class="stylizedbutton" style="color: black; background-color: white;"><img src="" width="16">Download it</button></a>
+        </div>
+      </div>
+      <br>
+      <section id="links" class="centeritems">
+        <a href="https://github.com/samuellouf/PyBrowser"><button class="stylizedbutton">See on GitHub</button></a>
+        <a href="#download" onclick="setActive('download');"><button class="stylizedbutton">Download</button></a>
+      </section>
+    </section>
+    <header class="topnav">
+      <a href="#home" onclick="setActive('home');">Home</a>
+      <a href="#about" onclick="setActive('about');">About</a>
+      <a href="#functionalities" onclick="setActive('functionalities');">Functionalities</a>
+      <a href="#download" onclick="setActive('download');">Download</a>
+      <a href="#bugs" onclick="setActive('bugs');">Bugs and issues</a>
+    </header>
+    <section id="page">
+      <section id="about">
+        <br>
+        <h1 class="title">About</h1>
+        <br>
+        <p class="aboutparagraph">PyBrowser is a free, open-source, Python-made browser. </p>
+        <br>
+      </section>
+      <section id="download">
+        <br>
+        <h1 class="title">Download</h1>
+        <br>
+        <div class="bigdownloadbutton">
+          <a href="" class="downloadbutton"><button class="stylizedbutton" style="background-color: #505050; outline-color: #707070; font-size: 2em;">Download</button></a>
+        </div>
+        <br>
+        <br>
+        <h1 align="center">or</h1>
+        <br>
+        <br>
+        <div class="selectanother">
+          <div class="select">
+            <select class="anotheros" id="selectanotheros">
+              <option value="">Select an other OS</option>
+              <option value="win">Windows (x32/x64)</option>
+              <option value="macOS">MacOS</option>
+              <option value="linux">Linux (x64)</option>
+            </select>
+          </div>
+          <p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>
+          <div class="select">
+            <select class="anotherversion" id="selectanotherversion">
+              <option value="">Select an other version</option>
+              <span class="versions"></span>
+            </select>
+          </div>
+        </div>
+        <br>
+        <div class="centeritems">
+          <a href="javascript: download(document.querySelector('#download div.select select.anotherversion').value, document.querySelector('#download div.select select.anotheros').value);"><button class="stylizedbutton" style="background-color: #505050; outline-color: #707070;">Download</button></a>
+        </div>
+        <br>
+        <br>
+      </section>
+      <section id="functionalities">
+        <br>
+        <h1 class="title">Functionalities</h1>
+        <br>
+        <ul>
+          <li>Browse on the internet (<i>of course</i>)</li>
+          <li>Check updates</li>
+          <li>Fullscreen</li>
+          <li>Rename window</li>
+          <li>Customize color theme</li>
+          <li>Change language</li>
+        </ul>
+        <br>
+      </section>
+      <section id="bugs">
+        <br>
+        <h1 class="title">Bugs and issues</h1>
+        <br>
+        <p>If you have found any bug or issue in PyBrowser, please report it in issues.</p>
+        <input type="text" placeholder="Issue name" class="stylizedinput">
+        <textarea class="stylizedinput" placeholder="The detailed issue"></textarea>
+        <div class="centeritems">
+          <a href="javascript: sendIssue(document.querySelector('#bugs input').value, document.querySelector('#bugs textarea').value);"><button class="stylizedbutton" style="background-color: #30a14e; outline-color: #3fc257; font-size: 1.5em;">Report an bug</button></a>
+        </div>
+        <br>
+      </section>
+    </section>
+    <footer>
+      <br>
+      <p>By @samuellouf - (on <a href="https://github.com/samuellouf/">GitHub</a>)</p>
+      <p>Any problems? Report them <a href="https://github.com/samuellouf/PyBrowser/issues">here</a>.</p>
+      <p>-</p>
+      <div class="links"><a href="https://github.com/samuellouf/PyBrowser/">See on GitHub</a></div>
+      <br><br>
+    </footer>
+    <!--Scripts-->
+    <script src="./script.js"></script>
+    <script src="./header.js"></script>
+    <script src="./download.js"></script>
+  </body>
+</html>
