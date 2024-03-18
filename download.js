@@ -51,8 +51,8 @@ async function download(version='lastest', os=if_then_else_return(getOS() == 'Wi
     version = lastest_version.lastest_version;
   }
   const link = document.createElement("a");
-  link.href = 'https://github.com/samuellouf/PyBrowser/releases/download/v' + version + '/PyBrowser-v' + version + '-' + os + '.zip';
-  link.download = 'PyBrowser-v' + version + '-' + os + '.zip';
+  link.href = 'https://github.com/samuellouf/PyBrowser/releases/download/v' + version + '/PyBrowser-v' + version + '.zip';
+  link.download = 'PyBrowser-v' + version + '.zip';
   document.body.appendChild(link);
   link.click();
   link.remove();
