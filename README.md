@@ -1,2 +1,2 @@
-# PyBrowser
-My own little Python Browser.
+# PyBrowser Website
+The PyBrowser website repository.
