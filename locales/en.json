@@ -22,6 +22,10 @@
     "dialogs-change_window_title": "Change this window's title",
     "new_tab": "New tab",
     "profile_selection": "Select a profile",
+    "extensions": "Extension",
     "update": "Update",
-    "ask-update": "A new update is available. Do you want to install it?"
+    "ask-update": "A new update is available. Do you want to install it?",
+    "dialogs-dev-execute-function": "Execute a function",
+    "menubar-type-file": "File",
+    "menubar-type-file-new": "New"
 }
