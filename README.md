@@ -1,2 +1,2 @@
-# PyBrowser
-My own little Python Browser.
+# TurboWarp-Extension-Creator
+Easily create extensions for TurboWarp.
