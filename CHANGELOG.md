@@ -1,4 +1,7 @@
 Changelog :
- - Moved the `settings` folder to `gui/settings`.
- - Implemented arguments usage [See on the Wiki](https://github.com/samuellouf/PyBrowser/wiki/Arguments).
- - Added a "What's new" page
+ - Fixed the update code
+ - Fixed the color argument
+ - Made some code adjustments (browser pages)
+ - Added an URL argument
+ - Changed the README.md
+ - Added launcher.cmd

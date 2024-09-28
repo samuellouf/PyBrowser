@@ -1,5 +1,5 @@
 """PyBrowser
-v1.0.0
+v1.2.0
 A simple Python web browser made with PyQt.
 by: SamuelLouf <https://github.com/samuellouf>"""
 
@@ -14,7 +14,7 @@ from PyQt5.uic import *
 from io import StringIO
 import re
 
-__version__ = 1.0
+__version__ = 1.2
 
 os.chdir(__file__.replace('PyBrowser.py', ''))
 
@@ -24,6 +24,12 @@ def is_valid_url(url):
         r'^(https?://)?'  # Optional http or https scheme
         r'([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}'  # Domain name
         r'(/[a-zA-Z0-9-._~:/?#[\]@!$&\'()*+,;=%]*)?$'  # Optional path/query/fragment
+    )
+    return (re.match(pattern, url) is not None) or is_browser_url(url)
+
+def is_browser_url(url):
+    pattern = re.compile(
+        r'^pybrowser://'
     )
     return re.match(pattern, url) is not None
 
@@ -79,21 +85,8 @@ def fetch_url(url):
 def curl(url, output):
     os.system('curl ' + url + ' -o ' + output)
 
-class ProfileSelection(QMainWindow):
-    def __init__(self):
-        super().__init__()
-
-        # Load Dialogs
-        self.dialogs = Dialogs()
-        self.dialogs.setLanguage(self.language)
-
-        # Set window proprieties
-        self.setWindowTitle('PyBrowser - ' + self.dialogs.getDialog('profile_selection'))
-
-        self.profile_selection = QComboBox()
-
 class Browser(QMainWindow):
-    def __init__(self, theme, profile, language, isPrivate : bool, size = 'default', menubar = [], firststart = True):
+    def __init__(self, theme, profile, language, isPrivate : bool, size = 'default', menubar = [], firststart = True, url=None):
         super().__init__()
 
         # Set window properties
@@ -120,6 +113,8 @@ class Browser(QMainWindow):
         self.isPrivate = isPrivate
         self.profile = profile
         self.language = language
+
+        self.browser_page_dir = os.getcwd().replace('\\', '/') + '/browser_pages/'
         
         self.emptyProfile = QWebEngineProfile()
         self.emptyProfile_cookie_jar = self.emptyProfile.cookieStore()
@@ -145,9 +140,13 @@ class Browser(QMainWindow):
 
         # Create initial tab
         if firststart:
-            self.add_tab((os.getcwd().replace('\\', '/') + '/browser_pages/whats-new/index.html'))
+            self.add_tab((self.browser_page_dir + 'whats-new/index.html'))
         else:
-            self.add_tab()
+            if url == None:
+                self.add_tab(self.browser_page_dir + 'home/index.html')
+            else:
+                self.add_tab(url)
+                self.refreshURLBar()
 
         # Create navigation bar
         self.navbar = QToolBar()
@@ -407,7 +406,6 @@ class Browser(QMainWindow):
             return None
         
     def isUpToDate(self):
-        return True
         try:
             lastest_version = self.getLastestVersion()
             if float(lastest_version) <= __version__:
@@ -420,8 +418,9 @@ class Browser(QMainWindow):
             return None
 
     def update(self):
-        import updater
-        updater.update(self.getLastestVersion(), updater.UpdateLogger)
+        import webbrowser
+        webbrowser.open('https://samuellouf.github.io/PyBrowser/#download')
+        self.close_app()
             
     def customize_browser_menu_opened(self):
         self.customize_browser_zoom_level.setText(str(int(self.getZoom() * 100)) + '%')
@@ -770,7 +769,9 @@ class Browser(QMainWindow):
                 
                 if self.url_bar.text().split('://')[0] == 'pybrowser':
                     self.reload_page()
-                    
+    
+    def getBrowserPage(self, url):
+        return (self.browser_page_dir + url.replace('pybrowser://', '') + '/index.html')
 
     def add_tab(self, url = 'homepage'):
         browser = QWebEngineView()
@@ -779,9 +780,9 @@ class Browser(QMainWindow):
             browser.setPage(QWebEnginePage(self.emptyProfile, browser))
         
         if url == 'homepage':
-            browser.setUrl(QUrl((os.getcwd().replace('\\', '/') + '/browser_pages/home/index.html')))
+            browser.setUrl(QUrl(self.getBrowserPage('home')))
         elif (url == True) | (url == False):
-            browser.setUrl(QUrl((os.getcwd().replace('\\', '/') + '/browser_pages/home/index.html')))
+            browser.setUrl(QUrl(self.getBrowserPage('home')))
         else:
             browser.setUrl(QUrl(url))
             
@@ -873,7 +874,7 @@ class Browser(QMainWindow):
         except:
             return
 
-        browser_pages = os.getcwd().replace('\\', '/') + '/browser_pages/'
+        browser_pages = self.browser_page_dir
 
         if browser_pages.lower() in url.lower():
             self.url_bar.setText('pybrowser://' + url.lower().split(browser_pages.lower())[1].split('index.html')[0])
@@ -916,7 +917,7 @@ class Browser(QMainWindow):
             else:
                 slash = '/'
                 
-            q = QUrl(os.getcwd().replace('\\', '/') + '/browser_pages/' + self.url_bar.text().replace('pybrowser://', '') + slash + 'index.html')
+            q = QUrl(self.browser_page_dir + self.url_bar.text().replace('pybrowser://', '') + slash + 'index.html')
             
         if not self.isPrivate:
             self.save_history()
@@ -926,7 +927,7 @@ class Browser(QMainWindow):
         
 
     def update_urlbar(self, q):
-        browser_pages_dir = os.getcwd().replace('\\', '/') + '/browser_pages/'
+        browser_pages_dir = self.browser_page_dir
         if browser_pages_dir in q.toString():
             self.url_bar.setText('pybrowser://' + q.toString().split(browser_pages_dir)[1].replace('index.html', ''))
         else:
@@ -1017,6 +1018,8 @@ menubar = getMenubar() or []
 
 def getColor():
     if hasArgument('color'):
+        if getArgument('color')[0] == '#':
+            return getArgument('color')
         return '#' + getArgument('color')
     elif hasArgument('private'):
         return '#404040'
@@ -1030,7 +1033,26 @@ if fs:
     saves_file.write(json.dumps(saves))
     saves_file.close()
 
-window = Browser(color, profile, language, private, size, menubar, fs)
+def getURL():
+    if hasArgument('url'):
+        return getArgument('url')
+    else:
+        try:
+            argv = sys.argv
+            while argv[0] != __file__.replace('\\', '/').split('/')[-1]:
+                argv.pop(0)
+            argv.pop(0)
+            for arg in argv:
+                if (is_valid_url(arg) or is_browser_url(arg)):
+                    return arg
+        except:
+            return None
+
+    return None
+
+url = getURL()
+
+window = Browser(color, profile, language, private, size, menubar, fs, url)
 window.show()
 
 app.exec_()
