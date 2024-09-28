@@ -1,16 +1,50 @@
 """PyBrowser
-v1.0
+v1.2.0
 A simple Python web browser made with PyQt.
 by: SamuelLouf <https://github.com/samuellouf>"""
 
-import sys, os, colorsys, json, platform
+import sys, os, colorsys, json, requests, contextlib, socket, importlib, time, ctypes, platform
+from dialogs import *
+from PyQt5.QtCore import *
+from PyQt5.QtNetwork import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtWebEngineWidgets import *
+from PyQt5.QtGui import *
+from PyQt5.uic import *
 from io import StringIO
+import re
 
-__version__ = 1.0
+__version__ = 1.2
 
-file = __file__.replace('\\', '/')
+os.chdir(__file__.replace('PyBrowser.py', ''))
 
-os.chdir(file.replace(file.split('/')[-1], ''))
+def is_valid_url(url):
+    # Regular expression for matching URLs
+    pattern = re.compile(
+        r'^(https?://)?'  # Optional http or https scheme
+        r'([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}'  # Domain name
+        r'(/[a-zA-Z0-9-._~:/?#[\]@!$&\'()*+,;=%]*)?$'  # Optional path/query/fragment
+    )
+    return (re.match(pattern, url) is not None) or is_browser_url(url)
+
+def is_browser_url(url):
+    pattern = re.compile(
+        r'^pybrowser://'
+    )
+    return re.match(pattern, url) is not None
+
+def getArgument(arg):
+    for arg_ in sys.argv:
+        if arg_.__contains__('-' + arg) or arg_.__contains__('--' + arg):
+            if arg_.__contains__('='):
+                return arg_.split('=')[1]
+            else:
+                return ''
+
+    return None
+
+def hasArgument(arg):
+    return getArgument(arg) != None
 
 def get_os():
     if platform.system() == 'Windows' or platform.system() == 'Linux':
@@ -19,94 +53,54 @@ def get_os():
         return 'macOS'
     else:
         return platform.system()
-
-try:
-    import requests
-    hasRequest = True
-except ImportError:
-    import urllib.request
-    hasRequest = False
-
-from dialogs import *
-
-try:
-    from PyQt5.QtCore import *
-    from PyQt5.QtWidgets import *
-    from PyQt5.QtGui import *
-    from PyQt5.uic import *
-except ImportError:
-    if get_os() == 'Windows':
-        os.system('python -m ensurepip')
-    else:
-        os.system('python3 -m ensurepip')
-
+    
+def is_admin():
     try:
         if get_os() == 'Windows':
-            os.system('pip install PyQt5')
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        elif get_os() == 'Linux' or get_os() == 'macOS':
+            return os.geteuid() == 0
         else:
-            os.system('python3 -m pip install PyQt5')
+            return False
     except:
-        print('You need to install pip.')
-        input()
-        exit()
+        return False
 
-try:
-    from PyQt5.QtWebEngineWidgets import *
-except ImportError:
-    if get_os() == 'Windows':
-        os.system('python -m ensurepip')
-    else:
-        os.system('python3 -m ensurepip')
-    try:
-        if get_os() == 'Windows':
-            os.system('pip install PyQtWebEngine')
-        else:
-            os.system('python3 -m pip install PyQtWebEngine')
-    except:
-        print('You need to install pip.')
-        input()
-        exit()
+def getAvailablePort():
+    with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 def fetch_url(url):
-    if hasRequest:
-        try:
-            response = requests.get(url)
-            # Check if the request was successful (status code 200)
-            if response.status_code == 200:
-                return response.text
-            else:
-                return None
-        except:
+    try:
+        response = requests.get(url)
+        # Check if the request was successful (status code 200)
+        if response.status_code == 200:
+            return response.text
+        else:
             return None
-    else:
-        try:
-            response = urllib.request.urlopen(url)
-            # Check if the request was successful (status code 200)
-            return response.read()
-        except:
-            return None
-
-def has_internet(timeout=6):
-    if hasRequest:
-        try:
-            requests.get('https://www.google.com/', timeout=timeout)
-            return True
-        except:
-            return False
-    else:
-        try:
-            urllib.request.urlopen('https://www.google.com/', timeout=timeout)
-            return True
-        except:
-            return False
+    except Exception as e:
+        return None
+    
+def curl(url, output):
+    os.system('curl ' + url + ' -o ' + output)
 
 class Browser(QMainWindow):
-    def __init__(self, theme, profile, language, isPrivate : bool, size = 'default'):
+    def __init__(self, theme, profile, language, isPrivate : bool, size = 'default', menubar = [], firststart = True, url=None):
         super().__init__()
 
         # Set window properties
         self.setWindowTitle('PyBrowser') # Title
         self.setWindowIcon(QIcon('icon.png')) # Icon
+        
+        self.history = []
+        self.history_s = []
+        
+        self.event_listeners = []
+        self.event_functions = []
+        
+        self.action_event_listeners = []
+        self.action_event_functions = []
         
         if size == 'default':
             pass
@@ -119,14 +113,22 @@ class Browser(QMainWindow):
         self.isPrivate = isPrivate
         self.profile = profile
         self.language = language
+
+        self.browser_page_dir = os.getcwd().replace('\\', '/') + '/browser_pages/'
         
         self.emptyProfile = QWebEngineProfile()
         self.emptyProfile_cookie_jar = self.emptyProfile.cookieStore()
         self.emptyProfile_cookie_jar.deleteAllCookies()
-
+        
         # Load Dialogs
         self.dialogs = Dialogs()
         self.dialogs.setLanguage(self.language)
+
+        # Create menubar
+        self.menubar = QMenuBar(self)
+        self.menubar_data = menubar
+        self.loadMenubar()
+        self.setMenuBar(self.menubar)
 
         # Create tab widget
         self.tabs = QTabWidget()
@@ -137,7 +139,14 @@ class Browser(QMainWindow):
         self.setCentralWidget(self.tabs)
 
         # Create initial tab
-        self.add_tab()
+        if firststart:
+            self.add_tab((self.browser_page_dir + 'whats-new/index.html'))
+        else:
+            if url == None:
+                self.add_tab(self.browser_page_dir + 'home/index.html')
+            else:
+                self.add_tab(url)
+                self.refreshURLBar()
 
         # Create navigation bar
         self.navbar = QToolBar()
@@ -179,6 +188,12 @@ class Browser(QMainWindow):
         self.add_tab_btn = QAction(QIcon('gui/light_buttons/icon_plus.png'), 'Create a new tab', self)
         self.add_tab_btn.triggered.connect(self.add_tab)
         self.navbar.addAction(self.add_tab_btn)
+
+        # Add debug button
+        if dev_mode:
+            self.debug_btn = QAction('DEBUG', self)
+            self.debug_btn.triggered.connect(self.debug)
+            self.navbar.addAction(self.debug_btn)
         
         # Customize PyBrowser
         self.customize_browser_btn = QToolButton(self)
@@ -240,7 +255,7 @@ class Browser(QMainWindow):
 
         # Create a menu and add actions to it
         menu = QMenu(self)
-        if has_internet() and not self.isUpToDate():
+        if not self.isUpToDate():
             ret = QMessageBox.question(self, self.dialogs.getDialog('update'), self.dialogs.getDialog('ask-update'), QMessageBox.Yes | QMessageBox.No)
             if ret == QMessageBox.Yes:
                 self.update()
@@ -292,12 +307,17 @@ class Browser(QMainWindow):
         self.destroyed.connect(self.on_window_closed)
         self.tabs.currentChanged.connect(self.refreshURLBar)
 
-        if not isPrivate == True:
-            file = __file__.replace('\\', '/')
-            fs = file.replace(file.split('/')[-1], f'profiles/{profile}/firstStart')
-            if not os.path.exists(fs):
-                open(fs, 'x')
-                self.navigate_whatsnew()
+        # Admin
+        self.isAdmin = is_admin()
+
+        self.startup()
+
+    def startup(self):
+        class event:
+            def __init__(self):
+                self.type = 'start'
+        e = event()
+        self.sendEvent(e)
         
     def hideTabBar(self):
         self.tabs.tabBar().hide()
@@ -313,7 +333,69 @@ class Browser(QMainWindow):
     
     def on_window_closed(self):
         if not self.isPrivate:
-            pass
+            self.save_history()
+        class event:
+            def __init__(self):
+                self.type = 'window'
+                self.event = 'closed'
+        e = event()
+        self.sendEvent(e)
+
+    def sendEvent(self, event):
+        for i in range(len(self.event_listeners)):
+            if self.event_listeners[i] == event.type:
+                event.browser = self
+                self.event_functions[i](event)
+
+    def addEventListener(self, event, function):
+        self.event_listeners = self.event_listeners + [event]
+        self.event_functions = self.event_functions + [function]
+        
+    def addActionEventListener(self, action, function):
+        self.action_event_listeners = self.action_event_listeners + [action]
+        self.action_event_functions = self.action_event_functions + [function]
+    
+    def loadMenubar(self):
+        for menu in self.menubar_data:
+            if menu.__contains__('name'):
+                name = menu['name']
+            elif menu.__contains__('type'):
+                name = self.dialogs.getDialog('menubar-type-' + menu['type'])
+
+            menu_ = self.menubar.addMenu(name)
+
+            if menu.__contains__('actions'):
+                for action in menu['actions']:
+                    if action.__contains__('type'):
+                        if action['type'] == 'separator':
+                            menu_.addSeparator()
+                        else:
+                            name = self.dialogs.getDialog('menubar-type-' + action['type'])
+                            action_ = QAction(name, self)
+                            if action.__contains__('onclick'):
+                                if type(action['onclick']) == str:
+                                    action_.triggered.connect(eval(action['onclick']))
+                                else:
+                                    action_.triggered.connect(action['onclick'])
+
+                            menu_.addAction(action_)
+        
+    def debug(self):
+        f = QInputDialog(self)
+        f.setLabelText(self.dialogs.getDialog('dialogs-dev-execute-function'))
+        f.show()
+        if f.exec_() == QInputDialog.Accepted:
+            eval(f.textValue())
+        
+    def save_history(self):
+        history_file = open('profiles/' + profile + '/' + 'saves.json', 'r')
+        history = json.loads(history_file.read())
+        history_file.close()
+        history['history'] = history['history'] + self.history
+        
+        history_file = open('profiles/' + profile + '/' + 'saves.json', 'w')
+        history_file.write(json.dumps(history))
+        history_file.close()
         
     def getLastestVersion(self):
         try:
@@ -337,8 +419,7 @@ class Browser(QMainWindow):
 
     def update(self):
         import webbrowser
-        url = 'https://samuellouf.github.io/PyBrowser#download?version=%s&os=%s' % (self.getLastestVersion(), get_os())
-        webbrowser.open(url)
+        webbrowser.open('https://samuellouf.github.io/PyBrowser/#download')
         self.close_app()
             
     def customize_browser_menu_opened(self):
@@ -365,6 +446,11 @@ class Browser(QMainWindow):
         self.customize_browser_settings.setText(self.dialogs.getDialog('customize_browser-settings'))
         self.customize_browser_rename_window.setText(self.dialogs.getDialog('customize_browser-rename_window'))
         self.customize_browser_exit.setText(self.dialogs.getDialog('customize_browser-exit'))
+        class event:
+            def __init__(self):
+                self.type = 'dialogs_loaded'
+        e = event()
+        self.sendEvent(e)
     
     def getWindowSize(self):
         x = self.size().width()
@@ -383,12 +469,26 @@ class Browser(QMainWindow):
         if name.exec_() == QInputDialog.Accepted:
             self.setWindowTitle(name.textValue())
         
+            class event:
+                def __init__(self):
+                    self.type = 'window'
+                    self.event = 'renamed'
+                    self.value = name.textValue()
+            e = event()
+            self.sendEvent(e)
+        
     def fullscreen_on(self):
         self.setWindowFlag(Qt.FramelessWindowHint)
         self.navbar.setVisible(False)
         self.tabs.setTabBarAutoHide(True)
         self.showFullScreen()
         self.show()
+        class event:
+            def __init__(self):
+                self.type = 'fullscreen'
+                self.value = 'on'
+        e = event()
+        self.sendEvent(e)
 
     def fullscreen_off(self):
         self.setWindowFlag(Qt.FramelessWindowHint, False)
@@ -396,6 +496,12 @@ class Browser(QMainWindow):
         self.tabs.setTabBarAutoHide(False)
         self.showNormal()
         self.show()
+        class event:
+            def __init__(self):
+                self.type = 'fullscreen'
+                self.value = 'off'
+        e = event()
+        self.sendEvent(e)
 
     def toggleFullscreen(self):
         # Toggle between fullscreen and normal mode
@@ -406,6 +512,25 @@ class Browser(QMainWindow):
 
     def keyPressEvent(self, event):
         # Override key press event to handle the Escape key
+        class _event:
+            def __init__(self):
+                self.type = 'keypress'
+                self.isCancelling = False
+                self.window = None
+                self.Key = Qt.Key
+                self.KeyboardModifier = Qt.KeyboardModifier
+                self.KeyboardModifiers = Qt.KeyboardModifiers
+
+            def cancel(self):
+                self.isCancelling = True
+
+        e = _event()
+        e.key = event.key
+        e.modifiers = event.modifiers
+        self.sendEvent(e)
+
+        if e.isCancelling:
+            return
         
         if event.key() == Qt.Key_F11:
             self.toggleFullscreen()
@@ -425,14 +550,37 @@ class Browser(QMainWindow):
     def onZoomChanged(self, value):
         zoom_factor = value / 100
         self.setZoom(zoom_factor)
+        class event:
+            def __init__(self):
+                self.type = 'zoom'
+                self.value = ''
+                self.action = 'changed'
+        e = event()
+        e.value = zoom_factor
+        self.sendEvent(e)
 
     def setZoom(self, factor = 1):
         # Set the zoom factor for the QWebEngineView
         self.current_browser().setZoomFactor(factor)
         self.customize_browser_zoom_level.setText(str(int(self.getZoom() * 100)) + '%')
+        class event:
+            def __init__(self):
+                self.type = 'zoom'
+                self.value = ''
+                self.action = 'set'
+        e = event()
+        e.value = factor
+        self.sendEvent(e)
         
     def resetZoom(self):
         self.setZoom(1)
+        class event:
+            def __init__(self):
+                self.type = 'zoom'
+                self.value = 1
+                self.action = 'reset'
+        e = event()
+        self.sendEvent(e)
     
     def getZoom(self):
         return self.current_browser().zoomFactor()
@@ -448,10 +596,29 @@ class Browser(QMainWindow):
         saves_file = open('profiles/' + self.profile + '/' + 'saves.json')
         saves = json.loads(saves_file.read())
         self.window = Browser(saves['theme'], self.profile, self.language, False, self.getWindowSize())
+        
+        class event:
+            def __init__(self):
+                self.type = 'window'
+                self.event = 'new'
+                self.isPrivate = False
+                self.window = None
+        e = event()
+        e.window = self.window
+        self.sendEvent(e)
         self.window.show()
     
     def new_private_navigation_window(self):
         self.window = Browser('#404040', self.profile, self.language, True, self.getWindowSize())
+        class event:
+            def __init__(self):
+                self.type = 'window'
+                self.event = 'new'
+                self.isPrivate = True
+                self.window = None
+        e = event()
+        e.window = self.window
+        self.sendEvent(e)
         self.window.show()
     
     def hex_to_rgb(self, hex_color):
@@ -602,7 +769,9 @@ class Browser(QMainWindow):
                 
                 if self.url_bar.text().split('://')[0] == 'pybrowser':
                     self.reload_page()
-                    
+    
+    def getBrowserPage(self, url):
+        return (self.browser_page_dir + url.replace('pybrowser://', '') + '/index.html')
 
     def add_tab(self, url = 'homepage'):
         browser = QWebEngineView()
@@ -611,15 +780,9 @@ class Browser(QMainWindow):
             browser.setPage(QWebEnginePage(self.emptyProfile, browser))
         
         if url == 'homepage':
-            if self.isPrivate:
-                browser.setUrl(QUrl((os.getcwd().replace('\\', '/') + '/browser_pages/private/index.html')))
-            else:
-                browser.setUrl(QUrl((os.getcwd().replace('\\', '/') + '/browser_pages/home/index.html')))
+            browser.setUrl(QUrl(self.getBrowserPage('home')))
         elif (url == True) | (url == False):
-            if self.isPrivate:
-                browser.setUrl(QUrl((os.getcwd().replace('\\', '/') + '/browser_pages/private/index.html')))
-            else:
-                browser.setUrl(QUrl((os.getcwd().replace('\\', '/') + '/browser_pages/home/index.html')))
+            browser.setUrl(QUrl(self.getBrowserPage('home')))
         else:
             browser.setUrl(QUrl(url))
             
@@ -683,19 +846,10 @@ class Browser(QMainWindow):
 
     def navigate_home(self):
         self.add_tab()
-        if self.isPrivate:
-            self.current_browser().setUrl(QUrl((os.getcwd().replace('\\', '/') + '/browser_pages/private/index.html')))
-        else:
-            self.current_browser().setUrl(QUrl((os.getcwd().replace('\\', '/') + '/browser_pages/home/index.html')))
-        self.loadHistoryButtons()
-    
-    def navigate_whatsnew(self):
-        self.add_tab()
-        self.current_browser().setUrl(QUrl((os.getcwd().replace('\\', '/') + '/browser_pages/whats-new/index.html')))
+        self.current_browser().setUrl(QUrl((os.getcwd().replace('\\', '/') + '/browser_pages/home/index.html')))
         self.loadHistoryButtons()
 
     def navigate_about(self):
-        self.add_tab()
         self.current_browser().setUrl(QUrl((os.getcwd().replace('\\', '/') + '/browser_pages/about/index.html')))
         self.loadHistoryButtons()
 
@@ -720,7 +874,7 @@ class Browser(QMainWindow):
         except:
             return
 
-        browser_pages = os.getcwd().replace('\\', '/') + '/browser_pages/'
+        browser_pages = self.browser_page_dir
 
         if browser_pages.lower() in url.lower():
             self.url_bar.setText('pybrowser://' + url.lower().split(browser_pages.lower())[1].split('index.html')[0])
@@ -740,6 +894,15 @@ class Browser(QMainWindow):
         except:
             self.tabs.setTabText(self.tabs.indexOf(self.current_browser()), self.current_browser().page().title())
         
+        try:
+            self.history_s.append('x')
+            if ({'name': 'index.html', 'url': 'pybrowser://home/'} == {"name": self.current_browser().page().title(), "url": self.url_bar.text()}):
+                self.history.append({"name": self.dialogs.getDialog('new_tab'), "url": 'pybrowser://home/'})
+            elif self.current_browser().page().title() != self.url_bar.text() and "//" in self.url_bar.text() and self.current_browser().page().title()+'/' != self.url_bar.text() and not (self.current_browser().page().title() == 'Google' and 'https://www.google.com/search?q=' in self.url_bar.text()):
+                self.history.append({"name": self.current_browser().page().title(), "url": self.url_bar.text()})
+        except:
+            pass
+        
     def navigate_to_url(self):
         q = QUrl(self.url_bar.text())
         
@@ -754,17 +917,17 @@ class Browser(QMainWindow):
             else:
                 slash = '/'
                 
-            q = QUrl(os.getcwd().replace('\\', '/') + '/browser_pages/' + self.url_bar.text().replace('pybrowser://', '') + slash + 'index.html')
+            q = QUrl(self.browser_page_dir + self.url_bar.text().replace('pybrowser://', '') + slash + 'index.html')
             
         if not self.isPrivate:
-            pass
+            self.save_history()
                 
         self.current_browser().setUrl(q)
         self.loadHistoryButtons()
         
 
     def update_urlbar(self, q):
-        browser_pages_dir = os.getcwd().replace('\\', '/') + '/browser_pages/'
+        browser_pages_dir = self.browser_page_dir
         if browser_pages_dir in q.toString():
             self.url_bar.setText('pybrowser://' + q.toString().split(browser_pages_dir)[1].replace('index.html', ''))
         else:
@@ -776,7 +939,7 @@ class Browser(QMainWindow):
 class SettingsApp(QMainWindow):
     def __init__(self, language):
         super().__init__()
-        loadUi('settings/' + language + '.ui', self)  # Load the UI file
+        loadUi('gui/settings/' + language + '.ui', self)  # Load the UI file
 
         self.dialogs = Dialogs()
         self.dialogs.setLanguage(language)
@@ -822,15 +985,74 @@ class SettingsApp(QMainWindow):
         saves_file = open('profiles/' + profile + '/' + 'saves.json', 'w')
         saves_file.write(json.dumps(saves))
         saves_file.close()
+        
 
 app = QApplication(sys.argv)
 QApplication.setApplicationName("PyBrowser")
 
 profile = 'default'
-saves_file = open('profiles/' + profile + '/' + 'saves.json')
+saves_file = open(os.getcwd().replace('\\', '/') + '/profiles/' + profile + '/' + 'saves.json')
 saves = json.loads(saves_file.read())
 
-window = Browser(saves['theme'], profile, saves['language'], False)
+dev_mode = hasArgument('dev')
+
+language = getArgument('language') or saves['language']
+
+private = True or hasArgument('private')
+
+size = getArgument('size') or 'default'
+
+def getMenubar():
+    if hasArgument('menubar'):
+        mb = getArgument('menubar')
+        if os.path.exists(mb) and os.path.isfile(mb):
+            data = open(mb).read()
+        elif is_valid_url(mb):
+            data = fetch_url(mb)
+
+        data = json.loads(data)
+        return data or []
+    return []
+
+menubar = getMenubar() or []
+
+def getColor():
+    if hasArgument('color'):
+        if getArgument('color')[0] == '#':
+            return getArgument('color')
+        return '#' + getArgument('color')
+    elif hasArgument('private'):
+        return '#404040'
+    return None
+
+color = getColor() or saves['theme']
+fs = saves['first_start']
+if fs:
+    saves_file = open(os.getcwd().replace('\\', '/') + '/profiles/' + profile + '/' + 'saves.json', 'w')
+    saves['first_start'] = False
+    saves_file.write(json.dumps(saves))
+    saves_file.close()
+
+def getURL():
+    if hasArgument('url'):
+        return getArgument('url')
+    else:
+        try:
+            argv = sys.argv
+            while argv[0] != __file__.replace('\\', '/').split('/')[-1]:
+                argv.pop(0)
+            argv.pop(0)
+            for arg in argv:
+                if (is_valid_url(arg) or is_browser_url(arg)):
+                    return arg
+        except:
+            return None
+
+    return None
+
+url = getURL()
+
+window = Browser(color, profile, language, private, size, menubar, fs, url)
 window.show()
 
 app.exec_()

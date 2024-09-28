@@ -22,6 +22,10 @@
     "dialogs-change_window_title": "Renommer cette fenêtre",
     "new_tab": "Nouvel onglet",
     "profile_selection": "Sélectionnez un profil",
+    "extensions": "Extension",
     "update": "Mise à jour",
-    "ask-update": "Une mise à jour est disponible. Voulez-vous l'installer?"
+    "ask-update": "Une mise à jour est disponible. Voulez-vous l'installer?",
+    "dialogs-dev-execute-function": "Executer une fonction",
+    "menubar-type-file": "Fichier",
+    "menubar-type-file-new": "Nouveau"
 }
